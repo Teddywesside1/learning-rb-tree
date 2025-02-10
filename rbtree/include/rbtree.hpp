@@ -23,7 +23,10 @@ struct RBNode {
 template<typename Key>
 class RBTree {
 public:
-  RBTree() = default;
+  RBTree()  {
+    __dummy_nil_node = new NodeType();
+    __dummy_nil_node->color = BLACK;
+  }
 
   using NodeType = RBNode<Key>;
 
@@ -41,6 +44,14 @@ public:
 
   void __insert(NodeType* node);
 
+  void __remove(NodeType* node);
+
+  void __remove_leaf_node(NodeType* node);
+
+  void __remove_node_with_one_child(NodeType* node);
+
+  void fix_remove(NodeType* node, RBColor node_remove_color);
+
   void fix_insert(NodeType* node);
 
   NodeType* find_parent(const Key& key);
@@ -51,6 +62,8 @@ public:
 
   NodeType* root_ = nullptr;
   int size_ = 0;
+
+  NodeType* __dummy_nil_node;
 };
 
 template<typename Key>
@@ -207,7 +220,6 @@ void RBTree<Key>::__insert(NodeType* node)
   if (parent == nullptr) {
     root_ = node;
     root_->color = BLACK;
-    std::cout << "First Node : " << root_->key << std::endl;
     return;
   }
 
@@ -311,5 +323,177 @@ typename RBTree<Key>::NodeType* RBTree<Key>::find_parent(const Key& key)
 template<typename Key>
 void RBTree<Key>::remove(const Key& key)
 {
-  
+  auto node = find_parent(key);
+  if (node == nullptr || node->key != key) {
+    return;
+  }
+
+  __remove(node);
+  -- size_;
+}
+
+
+template<typename Key>
+void RBTree<Key>::__remove(NodeType* node)
+{
+  // 1. 删除叶子节点
+  if (node->left == nullptr && node->right == nullptr) {
+    __remove_leaf_node(node);
+  }
+  // 2. 删除只有一个子节点的
+  else if ((node->left == nullptr) ^ (node->right == nullptr)) {
+    __remove_node_with_one_child(node);
+  }
+  // 3. 删除具有两个叶子节点的
+  else if (node->left != nullptr && node->right != nullptr) {
+    auto right_min_node = node->right;
+    while (right_min_node != nullptr && right_min_node->left != nullptr) {
+      right_min_node = right_min_node->left;
+    }
+    node->key = right_min_node->key;
+    __remove(right_min_node);
+  } else {
+    assert(0);
+  }
+
+
+}
+
+template<typename Key>
+void RBTree<Key>::__remove_leaf_node(NodeType* node)
+{
+  if (node->parent == nullptr) {
+    root_ = nullptr;
+    return;
+  }
+
+  __dummy_nil_node->parent = node->parent;
+  if (node->parent->left == node) {
+    node->parent->left = __dummy_nil_node;
+    fix_remove(__dummy_nil_node, node->color);
+    node->parent->left = nullptr;
+  }
+  if (node->parent->right == node) {
+    node->parent->right = __dummy_nil_node;
+    fix_remove(__dummy_nil_node, node->color);
+    node->parent->right = nullptr;
+  }
+
+}
+
+template<typename Key>
+void RBTree<Key>::__remove_node_with_one_child(NodeType* node)
+{
+  auto child = node->left == nullptr ? node->right : node->left;
+  // 父节点修改
+  if (node->parent != nullptr) {
+    if (node->parent->left == node) {
+      node->parent->left = child;
+    }
+    if (node->parent->right == node) {
+      node->parent->right = child;
+    }
+  }
+  // 子节点修改
+  if (child != nullptr)
+    child->parent = node->parent;
+
+  if (node == root_) {
+    root_ = child;
+  }
+
+  fix_remove(child, node->color);
+}
+
+
+template<typename Key>
+void RBTree<Key>::fix_remove(NodeType* node, RBColor node_remove_color)
+{
+  // 被删除节点为红色
+  if (node_remove_color == RED) return;
+
+  assert(node != nullptr);
+  // 当前节点为红色
+  if (node->color == RED) {
+    node->color = BLACK; 
+    return;
+  }
+
+  // 当前节点是根节点
+  if (node->parent == nullptr) {
+    node->color = BLACK;
+    return;
+  }
+
+  auto brother = node->parent->left == node ? node->parent->right : node->parent->left;
+  assert(brother != nullptr);
+
+  // 1. 兄弟节点是红色:
+  if (brother->color == RED) {
+    node->parent->color = RED;
+    brother->color = BLACK;
+    if (node->parent->left == node) {
+      left_rotate(node->parent);
+    } else {
+      right_rotate(node->parent);
+    }
+    fix_remove(node, node_remove_color);
+    return;
+  }
+  // 2 兄弟节点是黑色，兄弟节点左右节点都是黑色
+  else if ((brother->left == nullptr || brother->left->color == BLACK)
+      && (brother->right == nullptr || brother->right->color == BLACK)) {
+    // 直接把兄弟节点改成红色，这样就平衡了node和brother的黑平衡，但上层仍可能存在黑节点失衡
+    // 所以递归，相当于问题变成了：删除了node-parent原本的节点，导致该子树的黑节点深度-1
+    brother->color = RED;
+    fix_remove(node->parent, BLACK);
+    return;
+  } 
+
+  // ***IMPORTANT*** 
+  // 下面情况3、4存在左右镜像问题，应分开讨论
+  // 最终目的就是将兄弟节点的红色子节点，放到外侧! 然后按照父节点旋转，从而平衡两侧的黑色节点深度
+
+  if (node->parent->left == node) {
+    // 3 兄弟节点是黑色，兄弟节点左子节点是红色，右子节点是黑色
+    // 这种情况下，要将它转换到情况4，
+    if ((brother->left != nullptr && brother->left->color == RED)
+        && (brother->right == nullptr || brother->right->color == BLACK)){
+      brother->color = RED;
+      brother->left->color = BLACK;
+      right_rotate(brother);
+      fix_remove(node, node_remove_color);
+    } 
+    // 4 兄弟节点是黑色， 兄弟节点右子节点是红色，左子节点任意
+    // 最终形态，可以通过旋转实现黑色节点深度平衡
+    else if (brother->right != nullptr && brother->right->color == RED) {
+      brother->color = node->parent->color;
+      node->parent->color = BLACK;
+      brother->right->color = BLACK;
+      left_rotate(node->parent);
+    } else {
+      assert(0);
+    }
+  } 
+  else {
+    // 3 兄弟节点是黑色，兄弟节点右子节点是红色，左子节点是黑色
+    // 这种情况下，要将它转换到情况4
+    if ((brother->left == nullptr || brother->left->color == BLACK)
+        && (brother->right != nullptr && brother->right->color == RED)){
+      brother->color = RED;
+      brother->right->color = BLACK;
+      left_rotate(brother);
+      fix_remove(node, node_remove_color);
+    } 
+    // 4 兄弟节点是黑色， 兄弟节点左子节点是红色，右子节点任意
+    // 最终形态，可以通过旋转实现黑色节点深度平衡
+    else if (brother->left != nullptr && brother->left->color == RED) {
+      brother->color = node->parent->color;
+      node->parent->color = BLACK;
+      brother->left->color = BLACK;
+      right_rotate(node->parent);
+    } else {
+      assert(0);
+    }
+  }
 }

@@ -33,25 +33,37 @@ TEST(rbtree, insertion)
 
 TEST(rbtree, insertion_random) 
 {
-  RBTree<int> tree;
 
-  for (int i = 0 ; i < 1e6 ; ++ i) {
-    int rd = rand();
-    try {
-      tree.insert(rd);
-    } catch (const std::exception& e) {
-      LOG(INFO) << "rd : " << rd << ", got ex :" << e.what(); 
+  int SIZE = 1e6;
+
+  auto func_test_rbtree = [=]() {
+    RBTree<int> tree;
+    for (int i = 0 ; i < SIZE ; ++ i) {
+      int rd = rand();
+      try {
+        tree.insert(rd);
+      } catch (const std::exception& e) {
+        // LOG(INFO) << "rd : " << rd << ", got ex :" << e.what(); 
+      }
+    }    
+    CHECK(tree.is_valid_rb_tree());
+  };
+
+  auto func_test_stl_set = [=]() {
+    std::set<int> stl_set;
+    for (int i = 0 ; i < SIZE ; ++ i) {
+      stl_set.insert(rand());
     }
-  }
+  };
 
-  CHECK(tree.is_valid_rb_tree());
+  MESSURE_DURATION(func_test_rbtree());
+  MESSURE_DURATION(func_test_stl_set());
 
-  LOG(INFO) << "Got A valid rb_tree, with size : " << tree.size();
 }
 
 
 
-TEST(rbtree, lookup) 
+TEST(rbtree, lookup_random) 
 {
   const int SIZE = 1E6;
 
@@ -63,7 +75,7 @@ TEST(rbtree, lookup)
   CHECK(tree.is_valid_rb_tree());
   LOG(INFO) << "Got A valid rb_tree, with size : " << tree.size();
 
-  auto test_func = [&]() {
+  auto func_test_rbtree = [&]() {
     for (int i = 0 ; i < SIZE ; ++ i) {
       int rd = rand() % SIZE;
       auto node = tree.find_parent(rd);
@@ -71,27 +83,82 @@ TEST(rbtree, lookup)
     }
   };
 
-  MESSURE_DURATION(test_func());
+  MESSURE_DURATION(func_test_rbtree());
+
+  std::set<int> stl_set;
+
+  for (int i = 0 ; i < SIZE ; ++ i) {
+    stl_set.insert(i);
+  }
+
+  auto func_test_stl_set = [&]() {
+    for (int i = 0 ; i < SIZE ; ++ i) {
+      int rd = rand() % SIZE;
+      auto itr = stl_set.find(rd);
+      CHECK(itr != stl_set.end() && *itr == rd);
+    }
+  };
+
+  MESSURE_DURATION(func_test_stl_set());
 }
 
 
-TEST(stl_set, lookup) 
+TEST(rbtree, remove) 
 {
-  const int SIZE = 1E6;
+  const int SIZE = 1e6;
 
-  std::set<int> tree;
+  RBTree<int> tree;
 
   for (int i = 0 ; i < SIZE ; ++ i) {
     tree.insert(i);
   }
+  CHECK(tree.is_valid_rb_tree());
+  tree.print();
+  LOG(INFO) << "Got A valid rb_tree, with size : " << tree.size();
+  
+  for (int i = 0 ; i < SIZE ; ++ i) {
+    try {
+      tree.remove(i);
+    } catch (const std::exception& e) {
+      LOG(INFO) << "Remove got invalid key : " << i;
+    }
+  }
+  CHECK(tree.is_valid_rb_tree());
+}
 
-  auto test_func = [&]() {
+
+TEST(rbtree, remove_random) 
+{
+  const int SIZE = 1e6;
+
+  RBTree<int> tree;
+
+  for (int i = 0 ; i < SIZE ; ++ i) {
+    tree.insert(i);
+  }
+  CHECK(tree.is_valid_rb_tree());
+  LOG(INFO) << "Got A valid rb_tree, with size : " << tree.size();
+  
+  auto func_test_rbtree = [&]() {
     for (int i = 0 ; i < SIZE ; ++ i) {
       int rd = rand() % SIZE;
-      auto itr = tree.find(rd);
-      CHECK(itr != tree.end() && *itr == rd);
+      tree.remove(rd);
+    }
+    CHECK(tree.is_valid_rb_tree());
+  };
+
+  MESSURE_DURATION(func_test_rbtree());
+
+  std::set<int> stl_set;
+  for (int i = 0 ; i < SIZE ; ++ i) {
+    stl_set.insert(i);
+  }
+  auto func_test_stl_set = [&]() {
+    for (int i = 0 ; i < SIZE ; ++ i) {
+      int rd = rand() % SIZE;
+      stl_set.erase(rd);
     }
   };
 
-  MESSURE_DURATION(test_func());
+  MESSURE_DURATION(func_test_stl_set());
 }

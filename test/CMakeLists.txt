@@ -11,7 +11,6 @@ find_package(GTest REQUIRED)
 find_package(glog REQUIRED)
 
 set(source_file 
-  src/gtest_main.cpp
   src/rbtree_test.cpp
 )
 
@@ -25,8 +24,6 @@ add_executable(${PROJECT_NAME} ${source_file})
 
 target_link_libraries(${PROJECT_NAME} PUBLIC 
   GTest::gtest_main
-  GTest::GTest
-  GTest::Main
   glog::glog
   rbtree
 )
